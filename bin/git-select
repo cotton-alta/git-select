@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+
+if type sentaku >& /dev/null; then
+  . sentaku -n
+else
+  echo "Please install sentaku (https://github.com/rcmdnk/sentaku)"
+  exit 1
+fi
+
+_SENTAKU_SEPARATOR=$'\n'
+
+# User initialization
+_sf_initialize_user () {
+  _s_selected=""
+  _s_cmd_result=""
+}
+
+# Description to display on top menu
+_sf_set_header () {
+  _s_header=""
+  if [ $_s_noheader != 1 -a $_s_lines -gt 10 ];then
+    if [ $_s_cols -ge 66 ];then
+      _s_header=" [n]j(n-down), [n]k(n-up), gg(top), G(bottom), [n]gg/G, (go to n),
+ ^D(Half page down), ^U(Half page up), ^F(Page down), ^B(Page Up),
+ Enter(select, checkout branch), d(delete branch), q(quit)"
+    elif [ $_s_cols -ge 42 ];then
+      _s_header=" vim-like updown, e.g)j:down, k:up, gg/G
+ Enter(checkout branch), d(delete branch), q(quit)"
+    fi
+  fi
+}
+
+_sf_execute () {
+  echo "$_s_cmd_result"
+}
+
+_sf_get_values () {
+  local orig_ifs=$IFS
+  IFS="$_s_s"
+  _s_inputs=("  create new branch" $(git branch))
+  IFS=$orig_ifs
+  _s_n=${#_s_inputs[@]}
+}
+
+_sf_select () {
+  if [ $_s_current_n -eq 0 ];then
+    _sf_generate_branch
+  else
+    _sf_checkout
+  fi
+}
+
+# Checkout to selected branch
+_sf_checkout () {
+  local branch=`echo "${_s_inputs[$_s_current_n]}" | sed 's/ //g' | sed 's/*//g'`
+  _s_cmd_result=`git checkout $branch 2>&1`
+  _s_break=1
+}
+
+# Generates and checkout a new branch with the specified name
+_sf_generate_branch () {
+  clear >/dev/tty
+  echo "Enter new branch name: " >/dev/tty
+  tput cnorm >/dev/tty 2>/dev/null || tput vs >/dev/tty 2>/dev/null
+  read _s_selected </dev/tty
+  _s_cmd_result=`git checkout -b $_s_selected 2>&1`
+  _s_break=1
+}
+
+# Delete selected branch
+_sf_d () {
+  local branch=`echo "${_s_inputs[$_s_current_n]}" | sed 's/ //g' | sed 's/*//g'`
+  local yes=0
+  while : ;do
+    _sf_echo "Delete $branch branch? (y/n)"
+    _sf_read
+    if [ "$_s_read" = "y" ];then
+      yes=1
+      break
+    elif [ "$_s_read" = "n" ];then
+      break
+    fi
+  done
+  if [ $yes -eq 1 ];then
+    git branch -D $branch
+  fi
+  _sf_get_values
+}
+
+echo "" | _sf_main "$@"
